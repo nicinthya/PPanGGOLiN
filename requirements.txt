@@ -14,3 +14,4 @@ colorlover>=0.3
 mafft>=7.471
 numpy>=1.17.5
 bokeh>=2.3.1
+psutil

@@ -9,6 +9,37 @@ from pathlib import Path
 import os
 from numpy import repeat
 import argparse
+import time
+
+#installed libraries
+import psutil
+
+
+def follow_resource_usage(outname, step, cpu, timing_step=1):
+    """
+        writes the current machine resource usage every second in 'outname'
+        This function should be executed in a different process than main process, launched before starting everything.
+        :param outname: filename to which resource usage are written
+        :type outname: str
+        :param step: the Value which tells which step is currently being run (shared_memory Value)
+        :type step: multiprocessing.sharedctypes.Synchronized
+        :param cpu: the number of provided cpus
+        :type cpu: int
+        :param timing_step: the time interval in-between resource usage checking
+        :type timing_step: float
+    """
+    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module"}
+    outfile = open(outname,"w")
+    outfile.write("time\tstep\tavg_cpu_usage\tmem_usage\n")
+    start_timer = time.time()
+    starting_mem = psutil.virtual_memory().used#measing starting mem, and assuming this is the 'base' memory of the machine.
+    #presume that everything above is PPanGGOLiN.
+    while True:
+        outfile.write(f"{round(time.time() - start_timer,2)}\t{num2name[step.value]}\t{(psutil.cpu_percent() / psutil.cpu_count() ) * cpu}\t{psutil.virtual_memory().used - starting_mem}\n")
+        outfile.flush()
+        time.sleep(timing_step)
+        
+
 
 
 def jaccard_similarities(mat, jaccard_similarity_th):

@@ -6,10 +6,10 @@ import os
 import time
 import argparse
 import logging
-
+from multiprocessing import Process, Value
 # local libraries
 from ppanggolin.pangenome import Pangenome
-from ppanggolin.utils import mkFilename, min_one, mkOutdir, check_option_workflow
+from ppanggolin.utils import mkFilename, min_one, mkOutdir, check_option_workflow, follow_resource_usage
 from ppanggolin.annotate import annotatePangenome, readAnnotations, getGeneSequencesFromFastas
 from ppanggolin.cluster import clustering, readClustering
 from ppanggolin.graph import computeNeighborsGraph
@@ -29,6 +29,12 @@ def launch(args):
     check_option_workflow(args)
     pangenome = Pangenome()
     filename = mkFilename(args.basename, args.output, args.force)
+
+    step = Value("I",1)
+    p = Process(target=follow_resource_usage, args=(args.output + "/resource_usage.tsv",step, args.cpu, 0.1 ))
+    p.start()
+    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module"}
+
     writing_time, anno_time, clust_time, mod_time, desc_time = (None, None, None, None, None)
     if args.anno:  # if the annotations are provided, we read from it
         start_anno = time.time()
@@ -45,6 +51,7 @@ def launch(args):
         elif args.clusters is None and pangenome.status["geneSequences"] == "No" and args.fasta is not None:
             getGeneSequencesFromFastas(pangenome, args.fasta)
         start_clust = time.time()
+        step.value = 2
         if args.clusters is not None:
             readClustering(pangenome, args.clusters, disable_bar=args.disable_prog_bar)
 
@@ -59,15 +66,18 @@ def launch(args):
         start_writing = time.time()
         writePangenome(pangenome, filename, args.force, disable_bar=args.disable_prog_bar)
         writing_time = time.time() - start_writing
+        step.value = 2
         start_clust = time.time()
         clustering(pangenome, args.tmpdir, args.cpu, defrag=not args.no_defrag, disable_bar=args.disable_prog_bar)
         clust_time = time.time() - start_clust
 
     writePangenome(pangenome, filename, args.force, disable_bar=args.disable_prog_bar)
+    step.value = 3
     start_graph = time.time()
     computeNeighborsGraph(pangenome, disable_bar=args.disable_prog_bar)
     graph_time = time.time() - start_graph
 
+    step.value = 4
     start_part = time.time()
     partition(pangenome, tmpdir=args.tmpdir, cpu=args.cpu, K=args.nb_of_partitions, disable_bar=args.disable_prog_bar)
     part_time = time.time() - start_part
@@ -76,14 +86,17 @@ def launch(args):
     writePangenome(pangenome, filename, args.force, disable_bar=args.disable_prog_bar)
     writing_time = writing_time + time.time() - start_writing
 
+    step.value = 5
     start_regions = time.time()
     predictRGP(pangenome, disable_bar=args.disable_prog_bar)
     regions_time = time.time() - start_regions
 
+    step.value = 7
     start_spots = time.time()
     predictHotspots(pangenome, args.output, disable_bar=args.disable_prog_bar)
     spot_time = time.time() - start_spots
 
+    step.value = 8
     start_mods = time.time()
     predictModules(pangenome=pangenome, cpu=args.cpu, tmpdir=args.tmpdir, disable_bar=args.disable_prog_bar)
     mod_time = time.time() - start_mods
@@ -122,6 +135,8 @@ def launch(args):
     if not args.only_pangenome:
         logging.getLogger().info(f"Writing descriptive files for the pangenome took : {round(desc_time, 2)} seconds")
     printInfo(filename, content=True)
+
+    p.terminate()#kill the follow_resource_usage process.
 
 
 def allSubparser(subparser):
