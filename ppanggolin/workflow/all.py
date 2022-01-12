@@ -33,7 +33,7 @@ def launch(args):
     step = Value("I",1)
     p = Process(target=follow_resource_usage, args=(args.output + "/resource_usage.tsv",step, args.cpu, 0.1 ))
     p.start()
-    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module"}
+    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module",9:"end"}
 
     writing_time, anno_time, clust_time, mod_time, desc_time = (None, None, None, None, None)
     if args.anno:  # if the annotations are provided, we read from it
@@ -100,7 +100,8 @@ def launch(args):
     start_mods = time.time()
     predictModules(pangenome=pangenome, cpu=args.cpu, tmpdir=args.tmpdir, disable_bar=args.disable_prog_bar)
     mod_time = time.time() - start_mods
-
+    
+    step.value = 9
     start_writing = time.time()
     writePangenome(pangenome, filename, args.force, disable_bar=args.disable_prog_bar)
     writing_time = writing_time + time.time() - start_writing
