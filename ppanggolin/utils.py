@@ -28,7 +28,7 @@ def follow_resource_usage(outname, step, cpu, timing_step=1):
         :param timing_step: the time interval in-between resource usage checking
         :type timing_step: float
     """
-    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module"}
+    num2name = {1:"annotate",2:"cluster", 3:"graph",4:"partition",5:"rgp",6:"HDF5",7:"spot",8:"module", 9:"end"}
     outfile = open(outname,"w")
     outfile.write("time\tstep\tavg_cpu_usage\tmem_usage\n")
     start_timer = time.time()
