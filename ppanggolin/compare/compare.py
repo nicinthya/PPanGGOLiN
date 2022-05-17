@@ -14,7 +14,7 @@ import os
 import pdb
 
 # installed libraries
-import numpy
+import numpy as np
 from scipy.stats import ttest_rel, ttest_ind, wilcoxon, ranksums, iqr, fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import multipletests
 
@@ -26,51 +26,71 @@ def compareSubparser(subparser):
     parser = subparser.add_parser("compare", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     required = parser.add_argument_group(title="Required arguments", description="One of the following arguments is required :")
     required.add_argument('-p', '--pangenome', required=True, type=str, help="The pangenome .h5 file")
-    required.add_argument('-dn1', "--datasetname1", required=False, nargs=1, type=str)
-    required.add_argument('-dn2', "--datasetname2", required=False, nargs=1, type=str)
+    required.add_argument('-dn1', "--condition1", required=False, nargs=1, type=str)
+    required.add_argument('-dn2', "--condition2", required=False, nargs=1, type=str)
     required.add_argument('-d1', "--dataset1", required=False, nargs='+')
     required.add_argument('-d2', "--dataset2", required=False, nargs='+')
 
     return parser
 
 def performComparisons(pangenome, dataset1, dataset2):
+    """Perform comparations based on the occurences of genes in a pangenome between two list of genomes corresponding to 2 conditions.
+    Reads a pangenome object and return a dictionnary where gene families are the keys and the values are lists of 3 elements (p-value, oddsratio, V-cramer).
     
+    :param pangeome: a pangenome  
+    :type pangeome: :class:`ppanggolin.Pangenome`
+    :param dataset1: The name of different strains for condition1
+    :type dataset1: list[str]
+    :param dataset2: The name of different strains for condition2
+    :type dataset2: list[str]
+    :return: a dictionnary of family genes as key and list of 3 elements  p-value, oddsratio, v-cramer 
+    :rtype: dict[ str , list[float, float, float] ]
+    """
+
+    results={}
     for f in pangenome.geneFamilies:
         dataset1_fampresence = 0
         dataset2_fampresence = 0
         dataset1_famabsence = 0
         dataset2_famabsence = 0
-        sub_org_list = [org for org in pangenome.organisms if ((org in dataset1) or (org in dataset2))]
+        sub_org_list = [org.name for org in pangenome.organisms if ((org.name in dataset1) or (org.name in dataset2))]
         for org in sub_org_list:
-            if org in args.dataset1:
+            if org in dataset1:
                 dataset1_fampresence+=1
             else:
                 dataset1_famabsence+=1
-            if org in args.dataset2:
+            if org in dataset2:
                 dataset2_fampresence+=1
             else:
                 dataset2_famabsence+=1
-            #[f for f in pangenome.geneFamilies][0].organisms
-            results[f.name]=np.array([[dataset1_fampresence, dataset2_fampresence], [dataset1_famabsence, dataset2_famabsence]])
-    #[f.name for f in pangenome.geneFamilies]
-    print(results)
+            #table of contingency  
+            contingency_table = np.array([[dataset1_fampresence, dataset2_fampresence], [dataset1_famabsence, dataset2_famabsence]])
+            
+        def cramerV(ct):
+            X2 = chi2_contingency(ct, correction=False)[0]
+            n = np.sum(ct)
+            minDim = min(ct.shape)-1
+            return(np.sqrt((X2/n) / minDim))
+        oddsratio, pvalue, V = (float("nan"), float("nan"), float("nan"))
+        try:
+            oddsratio, pvalue = fisher_exact(contingency_table)
+            V = cramerV(contingency_table)
+        except:
+            print(fam+" "+str(contingency_table))
+            pass
 
-#[f for f in pangenome.geneFamilies if f.name == "GCF_001398295.1_7396_3_21_genomic_CDS_0944"][0].organisms
+        results[f.name] = [pvalue, oddsratio, V]
+    return(results)
 
 def launch(args):
     """ launch the comparison"""
     pangenome = Pangenome()
     pangenome.addFile(args.pangenome)
-    checkPangenomeInfo(pangenome, needFamilies=True, needAnnotations=True, disable_bar=True)
+    checkPangenomeInfo(pangenome, needFamilies=True, needAnnotations=True, disable_bar=args.disable_prog_bar)
     intersec_name = set(args.dataset1).intersection(args.dataset2)
-    intersec_condition = set(args.datasetname1).intersection(args.datasetname2)
-
     if len(intersec_name) != 0:
         raise Exception(f"You provided same genomes, must be different argument to compare common part : '{intersec_name}'")
-    if args.datasetname1== args.datasetname2:
-        raise Exception (f"You provided same list for conditions, must be different arguments common part : '{intersec_condition}'")
-    if org in f.organisms :
-        performComparisons(pangenome, dataset1=args.dataset1, dataset2=args.dataset2)
-        writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
-
-
+    if args.condition1== args.condition2:
+        raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
+    print(performComparisons(pangenome, dataset1=args.dataset1, dataset2=args.dataset2))
+    #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
