@@ -33,7 +33,7 @@ import ppanggolin.RGP.genomicIsland
 import ppanggolin.RGP.spot
 import ppanggolin.mod
 import ppanggolin.context
-
+import ppanggolin.compare
 
 def checkTsvSanity(tsv):
     f = open(tsv, "r")
@@ -156,7 +156,8 @@ def cmdLine():
             ppanggolin.RGP.genomicIsland.rgpSubparser(subparsers),
             ppanggolin.RGP.spot.spotSubparser(subparsers),
             ppanggolin.mod.moduleSubparser(subparsers),
-            ppanggolin.context.contextSubparser(subparsers)]  # subparsers
+            ppanggolin.context.contextSubparser(subparsers),
+            ppanggolin.compare.compareSubparser(subparsers)]  # subparsers
     ppanggolin.info.infoSubparser(subparsers)  # not adding to subs because the 'common' options are not needed for this
 
     for sub in subs:  # add options common to all subcommands
@@ -251,8 +252,11 @@ def main():
         ppanggolin.workflow.panModule.launch(args)
     elif args.subcommand == "all":
         ppanggolin.workflow.all.launch(args)
+    elif args.subcommand == "compare":
+        ppanggolin.compare.launch(args)
     elif args.subcommand == "context":
         ppanggolin.context.launch(args)
+    
 
 
 if __name__ == "__main__":
