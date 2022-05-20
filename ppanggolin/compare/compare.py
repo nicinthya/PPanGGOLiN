@@ -71,15 +71,22 @@ def performComparisons(pangenome, dataset1, dataset2):
             n = np.sum(ct)
             minDim = min(ct.shape)-1
             return(np.sqrt((X2/n) / minDim))
-        oddsratio, pvalue, V = (float("nan"), float("nan"), float("nan"))
+        oddsratio, pvalue, V, pval_corr = (float("nan"), float("nan"), float("nan"), float("nan"))
+
         try:
             oddsratio, pvalue = fisher_exact(contingency_table)
             V = cramerV(contingency_table)
         except:
             print(fam+" "+str(contingency_table))
             pass
+        results[f.name] = [pvalue, oddsratio, V, pval_corr]  
+        
+        for cle in results: 
+            valeur= results[cle]
+            all_pvals = valeur[0]
+            _,pval_corr,_,_ = multipletests(all_pvals, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+            valeur[-1]= pval_corr[0]
 
-        results[f.name] = [pvalue, oddsratio, V]
     return(results)
 
 def launch(args):
@@ -94,3 +101,4 @@ def launch(args):
         raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
     print(performComparisons(pangenome, dataset1=args.dataset1, dataset2=args.dataset2))
     #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
+
