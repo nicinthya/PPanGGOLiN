@@ -43,11 +43,12 @@ def performComparisons(pangenome, dataset1, dataset2):
     :type dataset1: list[str]
     :param dataset2: The name of different strains for condition2
     :type dataset2: list[str]
-    :return: a dictionnary of family genes as key and list of 3 elements  p-value, oddsratio, v-cramer 
-    :rtype: dict[ str , list[float, float, float] ]
+    :return: a dictionnary of family genes as key and list of 3 elements  p-value, oddsratio, v-cramer, p-value corrected
+    :rtype: dict[ str , list[float, float, float, float] ]
     """
 
     results={}
+    uncorrected_pval = []
     for f in pangenome.geneFamilies:
         dataset1_fampresence = 0
         dataset2_fampresence = 0
@@ -71,7 +72,8 @@ def performComparisons(pangenome, dataset1, dataset2):
             n = np.sum(ct)
             minDim = min(ct.shape)-1
             return(np.sqrt((X2/n) / minDim))
-        oddsratio, pvalue, V, pval_corr = (float("nan"), float("nan"), float("nan"), float("nan"))
+
+        pvalue, oddsratio, V, pval_corr = (float("nan"), float("nan"), float("nan"), float("nan"))
 
         try:
             oddsratio, pvalue = fisher_exact(contingency_table)
@@ -80,12 +82,17 @@ def performComparisons(pangenome, dataset1, dataset2):
             print(fam+" "+str(contingency_table))
             pass
         results[f.name] = [pvalue, oddsratio, V, pval_corr]  
-        
-        for cle in results: 
-            valeur= results[cle]
-            all_pvals = valeur[0]
-            _,pval_corr,_,_ = multipletests(all_pvals, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
-            valeur[-1]= pval_corr[0]
+        uncorrected_pval.append(pvalue)
+    #comprehensive lists
+    #all_corrected_pvals = multipletests([results[f.name][0] for f in pangenome.geneFamilies], alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+    #r=[]
+    #for f in pangenome.geneFamilies:
+    #    r.append(results[f.name][0])
+    #all_corrected_pvals = multipletests(r, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+
+    all_corrected_pvals = multipletests(uncorrected_pval, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+    for index, f in enumerate(pangenome.geneFamilies):
+        results[f.name][-1] = all_corrected_pvals[index]
 
     return(results)
 
