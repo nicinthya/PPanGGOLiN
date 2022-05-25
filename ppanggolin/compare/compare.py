@@ -28,8 +28,7 @@ def compareSubparser(subparser):
     required.add_argument('-p', '--pangenome', required=True, type=str, help="The pangenome .h5 file")
     required.add_argument('-dn1', "--condition1", required=False, nargs=1, type=str)
     required.add_argument('-dn2', "--condition2", required=False, nargs=1, type=str)
-    required.add_argument('-d1', "--dataset1", required=False, nargs='+')
-    required.add_argument('-d2', "--dataset2", required=False, nargs='+')
+    required.add_argument('-f', "--file", required=False, nargs=1, type=str, help="The list of all_genomes_input_ppanggolin_antibio.list")
 
     return parser
 
@@ -97,6 +96,7 @@ def performComparisons(pangenome, dataset1, dataset2):
     return(results)
 
 def launch(args):
+
     """ launch the comparison"""
     pangenome = Pangenome()
     pangenome.addFile(args.pangenome)
@@ -106,6 +106,28 @@ def launch(args):
         raise Exception(f"You provided same genomes, must be different argument to compare common part : '{intersec_name}'")
     if args.condition1== args.condition2:
         raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
-    print(performComparisons(pangenome, dataset1=args.dataset1, dataset2=args.dataset2))
+    if os.stat(args.file).st_size == 0:
+        raise Exception(f"Your provided an empty file")
+    print(performComparisons(pangenome, dataset1=args.file, dataset2=args.file))
+    file(file=args.file)
     #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
 
+
+
+
+def file(file):
+    list_susceptible=[]
+    list_resistant=[]
+    with open(file,"r") as tsvfile :
+        for line in tsvfile :
+            elements = line.split('\t')
+            genome_name = elements[0]
+            genome_type = elements[1]
+            if ("Resistant" in genome_type): 
+                list_resistant.append(genome_name)
+            elif ("Susceptible" in genome_type): 
+                list_susceptible.append(genome_name)
+            else: 
+                pass
+        return(list_susceptible, list_resistant)
+            
