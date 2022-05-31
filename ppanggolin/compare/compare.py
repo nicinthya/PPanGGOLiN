@@ -26,9 +26,9 @@ def compareSubparser(subparser):
     parser = subparser.add_parser("compare", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     required = parser.add_argument_group(title="Required arguments", description="One of the following arguments is required :")
     required.add_argument('-p', '--pangenome', required=True, type=str, help="The pangenome .h5 file")
-    required.add_argument('-dn1', "--condition1", required=False, nargs=1, type=str)
-    required.add_argument('-dn2', "--condition2", required=False, nargs=1, type=str)
-    required.add_argument('-f', "--file", required=False, nargs=1, type=str, help="The list of all_genomes_input_ppanggolin_antibio.list")
+    required.add_argument('-dn1', "--condition1", required=False, type=str)
+    required.add_argument('-dn2', "--condition2", required=False, type=str)
+    required.add_argument('-fi', "--file", required=False, type=str, help="The list of all_genomes_input_ppanggolin_antibio.list")
 
     return parser
 
@@ -78,21 +78,22 @@ def performComparisons(pangenome, dataset1, dataset2):
             oddsratio, pvalue = fisher_exact(contingency_table)
             V = cramerV(contingency_table)
         except:
-            print(fam+" "+str(contingency_table))
+            #print(fam+" "+str(contingency_table))
             pass
         results[f.name] = [pvalue, oddsratio, V, pval_corr]  
         uncorrected_pval.append(pvalue)
     #comprehensive lists
-    #all_corrected_pvals = multipletests([results[f.name][0] for f in pangenome.geneFamilies], alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
-    #r=[]
-    #for f in pangenome.geneFamilies:
-    #    r.append(results[f.name][0])
-    #all_corrected_pvals = multipletests(r, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+    # all_corrected_pvals = multipletests([results[f.name][0] for f in pangenome.geneFamilies], alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+    # r=[]
+    # for f in pangenome.geneFamilies:
+    #     r.append(results[f.name][0])
+    # all_corrected_pvals = multipletests(r, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
 
-    all_corrected_pvals = multipletests(uncorrected_pval, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
+    all_corrected_pvals = multipletests(uncorrected_pval, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)[1]
     for index, f in enumerate(pangenome.geneFamilies):
+        #pdb.set_trace()
         results[f.name][-1] = all_corrected_pvals[index]
-
+        #print(index)
     return(results)
 
 def launch(args):
@@ -101,13 +102,13 @@ def launch(args):
     pangenome = Pangenome()
     pangenome.addFile(args.pangenome)
     checkPangenomeInfo(pangenome, needFamilies=True, needAnnotations=True, disable_bar=args.disable_prog_bar)
-    intersec_name = set(args.dataset1).intersection(args.dataset2)
-    if len(intersec_name) != 0:
-        raise Exception(f"You provided same genomes, must be different argument to compare common part : '{intersec_name}'")
-    if args.condition1== args.condition2:
-        raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
-    if os.stat(args.file).st_size == 0:
-        raise Exception(f"Your provided an empty file")
+    #intersec_name = set(args.dataset1).intersection(args.dataset2)
+    #if len(intersec_name) != 0:
+        #raise Exception(f"You provided same genomes, must be different argument to compare common part : '{intersec_name}'")
+    #if args.condition1== args.condition2:
+        #raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
+    #if os.stat(args.file).st_size == 0:
+        #raise Exception(f"Your provided an empty file")
     print(performComparisons(pangenome, dataset1=args.file, dataset2=args.file))
     file(file=args.file)
     #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
