@@ -26,9 +26,8 @@ def compareSubparser(subparser):
     parser = subparser.add_parser("compare", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     required = parser.add_argument_group(title="Required arguments", description="One of the following arguments is required :")
     required.add_argument('-p', '--pangenome', required=True, type=str, help="The pangenome .h5 file")
-    required.add_argument('-dn1', "--condition1", required=False, type=str)
-    required.add_argument('-dn2', "--condition2", required=False, type=str)
-    required.add_argument('-fi', "--file", required=False, type=str, help="The list of all_genomes_input_ppanggolin_antibio.list")
+    required.add_argument('-i', "--input", required=False, type=str, help="The list of all genomes including the two conditions")
+    required.add_argument('-o', "--output", required=False, type=str, help="The file returns the dictionnary with p-val")
 
     return parser
 
@@ -43,7 +42,7 @@ def performComparisons(pangenome, dataset1, dataset2):
     :param dataset2: The name of different strains for condition2
     :type dataset2: list[str]
     :return: a dictionnary of family genes as key and list of 3 elements  p-value, oddsratio, v-cramer, p-value corrected
-    :rtype: dict[ str , list[float, float, float, float] ]
+    :type: dict[ str , list[float, float, float, float] ]
     """
 
     results={}
@@ -95,9 +94,8 @@ def performComparisons(pangenome, dataset1, dataset2):
         results[f.name][-1] = all_corrected_pvals[index]
         #print(index)
     return(results)
-
+    
 def launch(args):
-
     """ launch the comparison"""
     pangenome = Pangenome()
     pangenome.addFile(args.pangenome)
@@ -109,26 +107,35 @@ def launch(args):
         #raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
     #if os.stat(args.file).st_size == 0:
         #raise Exception(f"Your provided an empty file")
-    print(performComparisons(pangenome, dataset1=args.file, dataset2=args.file))
-    file(file=args.file)
+    extract_condition(file=args.input)
+    (data1, data2)= extract_condition(file)
+    performComparisons(pangenome, data1, data2)
+    output_file(file2= args.output, performComparisons(pangenome, dataset1=args.input, dataset2=args.input))
     #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
 
-
-
-
-def file(file):
-    list_susceptible=[]
-    list_resistant=[]
+def extract_condition(file):
+     """ extract condition names and list of genomes for these two condition from file 
+         :param file: contains genome_names, condition1 and condition2 with 1 if the genome is present for condition1 or condition2 and 0 if the genome is absent
+         :type os.File: tsv file """
+    list_condition1=[]
+    list_condition2=[]
     with open(file,"r") as tsvfile :
-        for line in tsvfile :
+        for i, line in enumerate(tsvfile) :
             elements = line.split('\t')
             genome_name = elements[0]
-            genome_type = elements[1]
-            if ("Resistant" in genome_type): 
-                list_resistant.append(genome_name)
-            elif ("Susceptible" in genome_type): 
-                list_susceptible.append(genome_name)
-            else: 
-                pass
-        return(list_susceptible, list_resistant)
-            
+            if i == 0:
+                condition1 = elements[1]
+                condition2 = elements[2]  
+            else:
+                if (elements[1] == 1):
+                    list_condition1.append(genome_name)
+                if (elements[2] == 1):
+                    list_condition2.append(genome_name)
+                #prévoir un cas on a 1 pour les 2 conditions
+                                          
+        return(list_conition1, list_condition2, condition1, condition2)
+
+def ouput_file(file2, res): 
+    with open (file2, "w") as tsvfile:
+        for fam_name in res:
+            file2.write(fam_name+"\t"+res[fam_name][0])
