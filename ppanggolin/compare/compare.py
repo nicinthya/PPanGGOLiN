@@ -12,6 +12,7 @@ import pkg_resources
 import tempfile
 import os
 import pdb
+import tqdm
 
 # installed libraries
 import numpy as np
@@ -26,9 +27,8 @@ def compareSubparser(subparser):
     parser = subparser.add_parser("compare", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     required = parser.add_argument_group(title="Required arguments", description="One of the following arguments is required :")
     required.add_argument('-p', '--pangenome', required=True, type=str, help="The pangenome .h5 file")
-    required.add_argument('-dn1', "--condition1", required=False, type=str)
-    required.add_argument('-dn2', "--condition2", required=False, type=str)
-    required.add_argument('-fi', "--file", required=False, type=str, help="The list of all_genomes_input_ppanggolin_antibio.list")
+    required.add_argument('-i', "--input", required=False, type=str, help="The list of all genomes including the two conditions")
+    required.add_argument('-out', "--output_compare", required=False, type=str, help="The file returns the dictionnary with p-val")
 
     return parser
 
@@ -42,13 +42,13 @@ def performComparisons(pangenome, dataset1, dataset2):
     :type dataset1: list[str]
     :param dataset2: The name of different strains for condition2
     :type dataset2: list[str]
-    :return: a dictionnary of family genes as key and list of 3 elements  p-value, oddsratio, v-cramer, p-value corrected
-    :rtype: dict[ str , list[float, float, float, float] ]
+    :return: a dictionnary of family genes as key and list of 4 elements  p-value, oddsratio, v-cramer, p-value corrected
+    :type: dict[ str , list[float, float, float, float] ]
     """
 
     results={}
     uncorrected_pval = []
-    for f in pangenome.geneFamilies:
+    for f in tqdm.tqdm(pangenome.geneFamilies, unit = "Gene family"):
         dataset1_fampresence = 0
         dataset2_fampresence = 0
         dataset1_famabsence = 0
@@ -91,44 +91,69 @@ def performComparisons(pangenome, dataset1, dataset2):
 
     all_corrected_pvals = multipletests(uncorrected_pval, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)[1]
     for index, f in enumerate(pangenome.geneFamilies):
-        #pdb.set_trace()
+        
         results[f.name][-1] = all_corrected_pvals[index]
         #print(index)
+    
+    logging.getLogger().debug("end of performCompararison step")     
     return(results)
-
+    
+    
 def launch(args):
-
     """ launch the comparison"""
     pangenome = Pangenome()
+    logging.getLogger().debug("start step")     
+    #if os.stat(args.input).st_size == 0:
+        #raise Exception(f"Your provided an empty file")
     pangenome.addFile(args.pangenome)
     checkPangenomeInfo(pangenome, needFamilies=True, needAnnotations=True, disable_bar=args.disable_prog_bar)
-    #intersec_name = set(args.dataset1).intersection(args.dataset2)
+    (data1, data2, c1, c2) = extract_condition(args.input)
+    #intersec_name = set(data1).intersection(set(data2))
     #if len(intersec_name) != 0:
         #raise Exception(f"You provided same genomes, must be different argument to compare common part : '{intersec_name}'")
-    #if args.condition1== args.condition2:
-        #raise Exception (f"You provided same conditions, must be different arguments common part : '{args.condition1}'")
-    #if os.stat(args.file).st_size == 0:
-        #raise Exception(f"Your provided an empty file")
-    print(performComparisons(pangenome, dataset1=args.file, dataset2=args.file))
-    file(file=args.file)
+    #if c1== c2:
+        #raise Exception (f"You provided same conditions in file, must be different arguments common part : '{args.condition1}'")
+    rs = performComparisons(pangenome = pangenome, dataset1 = data1, dataset2 = data2)
+    output_file(args.output_compare, rs)
     #writePangenome(pangenome, pangenome.file, args.force, disable_bar=args.disable_prog_bar)
+    logging.getLogger().debug("end of launch step")     
 
-
-
-
-def file(file):
-    list_susceptible=[]
-    list_resistant=[]
+def extract_condition(file):
+    """ extract condition names and list of genomes for these two condition from file 
+         :param file: contains genome_names, condition1 and condition2 with 1 if the genome is present for condition1 or condition2 and 0 if the genome is absent
+         :type os.File: tsv file """
+    list_genomes_condition1 = []
+    list_genomes_condition2 = []
     with open(file,"r") as tsvfile :
-        for line in tsvfile :
+        for i, line in enumerate(tsvfile) :
             elements = line.split('\t')
-            genome_name = elements[0]
-            genome_type = elements[1]
-            if ("Resistant" in genome_type): 
-                list_resistant.append(genome_name)
-            elif ("Susceptible" in genome_type): 
-                list_susceptible.append(genome_name)
-            else: 
-                pass
-        return(list_susceptible, list_resistant)
-            
+            #genomes_name = elements[0]
+            if i == 0:
+                condition1 = elements[1]
+                condition2 = elements[2]  
+            else :
+                if (elements[1] == "1"):
+                    list_genomes_condition1.append(elements[0])
+                if (elements[1] == "0"):
+                    list_genomes_condition2.append(elements[0])
+             #else:
+                 #if (elements[1] == 1):
+                     #list_condition1.append(genome_name)
+                 #if (elements[1] == 0):
+                     #list_condition2.append(genome_name)
+                 #prévoir un cas on a 1 pour les 2 condition
+        
+        logging.getLogger().debug("end of extraction step")     
+        return(list_genomes_condition1, list_genomes_condition2, condition1, condition2)
+
+def output_file(file2, res):  
+    with open(file2, "w") as tsvfile:
+        tsvfile.write("#Genome_name\tp_value\toddsratio\tV\tpval_corr\n") 
+        for fam_name in res:
+            gene_fam_str = str(res[fam_name][0])
+            p_value_str = str(res[fam_name][1])     
+            oddsratio_str = str(res[fam_name][2])
+            V_str = str(res[fam_name][3])
+            pval_corr_str = str(res[fam_name][4])
+            tsvfile.write(fam_name+"\t"+gene_fam_str+p_value_str+oddsratio_str+V_str+pval_corr_str+"\n")
+         
