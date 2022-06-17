@@ -47,25 +47,24 @@ def performComparisons(pangenome, dataset1, dataset2):
       
     results={}
     uncorrected_pval = []
-    for f in tqdm.tqdm(pangenome.geneFamilies, unit = "Gene family"):
-        #if f.partition != "S":
-            #continue
+    for f in tqdm.tqdm(pangenome.geneFamilies, unit = "gene family"):
         dataset1_fampresence = 0
         dataset2_fampresence = 0
         dataset1_famabsence = 0
         dataset2_famabsence = 0
-        sub_org_list = [org.name for org in f.organisms if ((org.name in dataset1) or (org.name in dataset2))]
-        for org in sub_org_list:
-            if org in dataset1:
+        org_names = set([org.name for org in f.organisms])
+        for org in dataset1:
+            if org in org_names:
                 dataset1_fampresence+=1
             else:
                 dataset1_famabsence+=1
-            if org in dataset2:
+        for org in dataset2:
+            if org in org_names:
                 dataset2_fampresence+=1
             else:
                 dataset2_famabsence+=1
-            #table of contingency  
-            contingency_table = np.array([[dataset1_fampresence, dataset2_fampresence], [dataset1_famabsence, dataset2_famabsence]]) 
+        #table of contingency  
+        contingency_table = np.array([[dataset1_fampresence, dataset2_fampresence], [dataset1_famabsence, dataset2_famabsence]]) 
  
         def cramerV(ct):
             X2 = chi2_contingency(ct, correction=False)[0]
@@ -77,9 +76,8 @@ def performComparisons(pangenome, dataset1, dataset2):
             oddsratio, pvalue = fisher_exact(contingency_table)
             V = cramerV(contingency_table)
         except:
-            #print(fam+" "+str(contingency_table))
             pass
-        results[f.name] = [f.namedPartition, pvalue, oddsratio, V, pval_corr]  
+        results[f.name] = [0, f.namedPartition, pvalue, oddsratio, V, pval_corr]  
         uncorrected_pval.append(pvalue)
     #comprehensive lists
     # all_corrected_pvals = multipletests([results[f.name][0] for f in pangenome.geneFamilies], alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
@@ -89,10 +87,8 @@ def performComparisons(pangenome, dataset1, dataset2):
     # all_corrected_pvals = multipletests(r, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)
     all_corrected_pvals = multipletests(uncorrected_pval, alpha=0.05, method='hs', is_sorted=False, returnsorted=False)[1]
     for index, f in enumerate(pangenome.geneFamilies):
-        #if f.partition != "S":
-            #continue
-        results[f.name][4] = all_corrected_pvals[index]
-        #print(index)
+        results[f.name][5] = all_corrected_pvals[index]
+        results[f.name][0] = index
 
     logging.getLogger().debug("end of performCompararison step")     
     return(results)
@@ -149,14 +145,14 @@ def output_file(file2, res):
           :type os.File: tsv file
      """
 
-     with open(file2, "w") as tsvfile:
-         tsvfile.write("#Gene_family_name\tpartition\tp_value\toddsratio\tV\tpval_cor\n")
-         for fam_name, stat_values in sorted(res.items(), key=operator.itemgetter(1)):
-             pdb.set_trace() 
-             partition = str(stat_values[0])              
-             p_value_str = str(stat_values[1])
-             oddsratio_str = str(stat_values[2])
-             V_str = str(stat_values[3])
-             p_value_corrected_str = str(stat_values[4])
-             tsvfile.write(fam_name+"\t"+partition+"\t"+p_value_str+"\t"+oddsratio_str+"\t"+V_str+"\t"+p_value_corrected_str+"\n")
+     with open(file2+".tsv", "w") as tsvfile:
+         tsvfile.write("Id\tGene_family_name\tpartition\tp_value\toddsratio\tV\tpval_cor\n")
+         for fam_name, stat_values in sorted(res.items(), key = lambda x : x[1][2]):
+             index = str(stat_values[0])              
+             partition = str(stat_values[1])              
+             p_value_str = str(stat_values[2])
+             oddsratio_str = str(stat_values[3])
+             V_str = str(stat_values[4])
+             p_value_corrected_str = str(stat_values[5])
+             tsvfile.write(index+"\t"+fam_name+"\t"+partition+"\t"+p_value_str+"\t"+oddsratio_str+"\t"+V_str+"\t"+p_value_corrected_str+"\n")
 
